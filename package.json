@@ -34,7 +34,7 @@
   "homepage": "https://github.com/haraka/haraka-plugin-esets#readme",
   "devDependencies": {
     "@haraka/eslint-config": "^2.0.2",
-    "haraka-test-fixtures": "1.3.5"
+    "haraka-test-fixtures": "1.3.8"
   },
   "prettier": {
     "singleQuote": true,
