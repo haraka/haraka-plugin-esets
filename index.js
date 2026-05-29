@@ -75,6 +75,7 @@ exports.hook_data_post = function (next, connection) {
   })
 
   ws.once('close', () => {
+    if (finished) return
     const start_time = Date.now()
     child_process.execFile(
       ESETS_CLI,
