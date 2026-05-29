@@ -1,7 +1,6 @@
-[![CI Test Status][ci-img]][ci-url]
-[![Code Climate][clim-img]][clim-url]
-
 # haraka-plugin-esets
+
+[![Test][ci-img]][ci-url] [![Cover][cov-img]][cov-url] [![Qlty][qlty-img]][qlty-url]
 
 This plugin allows virus scanning with ESET Mail Security for Linux/BSD.
 
@@ -22,5 +21,7 @@ $EDITOR config/esets.ini
 
 [ci-img]: https://github.com/haraka/haraka-plugin-esets/actions/workflows/ci.yml/badge.svg
 [ci-url]: https://github.com/haraka/haraka-plugin-esets/actions/workflows/ci.yml
-[clim-img]: https://codeclimate.com/github/haraka/haraka-plugin-esets/badges/gpa.svg
-[clim-url]: https://codeclimate.com/github/haraka/haraka-plugin-esets
+[cov-img]: https://codecov.io/github/haraka/haraka-plugin-esets/coverage.svg
+[cov-url]: https://codecov.io/github/haraka/haraka-plugin-esets
+[qlty-img]: https://qlty.sh/gh/haraka/projects/haraka-plugin-esets/maintainability.svg
+[qlty-url]: https://qlty.sh/gh/haraka/projects/haraka-plugin-esets
