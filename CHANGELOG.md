@@ -4,7 +4,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
-- test: refactored against test-fixtures 1.7.0
+### [1.0.2] - 2026-05-29
+
+- security: replace `exec()` with `execFile()`; pass `LANG=C` via env, not shell
+- fix: always call `next()` (clean scans and scanner-error paths no longer hang)
+- fix: unlink tmpfile when the write stream errors
+- refactor: split scanner-exit interpretation into interpret_esets_exit()
+- test: refactored against test-fixtures 1.7.0 #2
 
 ### [1.0.1] - 2025-01-30
 
@@ -17,4 +23,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - repackaged from haraka/Haraka
 
 [1.0.0]: https://github.com/haraka/haraka-plugin-esets/releases/tag/v1.0.0
-[1.0.1]: https://github.com/haraka/haraka-plugin-esets/releases/tag/1.0.1
+[1.0.1]: https://github.com/haraka/haraka-plugin-esets/releases/tag/v1.0.1
+[1.0.2]: https://github.com/haraka/haraka-plugin-esets/releases/tag/v1.0.2
