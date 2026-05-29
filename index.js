@@ -29,7 +29,7 @@ exports.interpret_esets_exit = function (error, stdout, stderr) {
   if (Number.isNaN(exit_code) || exit_code < 0) {
     // non-numeric (ETIMEDOUT, ENOENT, ...) — treat as scanner failure
     const errMsg = (stdout || stderr || String(error?.message || 'UNKNOWN'))
-      .replace('\n', ' ')
+      .replaceAll('\n', ' ')
       .trim()
     return { rc: DENYSOFT, msg: 'Virus scanner error', exit_code, errMsg }
   }
@@ -47,7 +47,7 @@ exports.interpret_esets_exit = function (error, stdout, stderr) {
     }
   }
 
-  const errMsg = (stdout || stderr || 'UNKNOWN').replace('\n', ' ').trim()
+  const errMsg = (stdout || stderr || 'UNKNOWN').replaceAll('\n', ' ').trim()
   return { rc: DENYSOFT, msg: 'Virus scanner error', exit_code, errMsg }
 }
 
