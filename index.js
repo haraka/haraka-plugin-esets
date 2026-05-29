@@ -1,9 +1,12 @@
 // esets
 
 const fs = require('node:fs')
+const path = require('node:path')
 const child_process = require('node:child_process')
 
-const virus_re = new RegExp('virus="([^"]+)"')
+const ESETS_CLI = '/opt/eset/esets/bin/esets_cli'
+const ESETS_TIMEOUT_MS = 30 * 1000
+const virus_re = /virus="([^"]+)"/
 
 exports.register = function () {
   this.load_esets_ini()
@@ -15,63 +18,97 @@ exports.load_esets_ini = function () {
   })
 }
 
+// Decision-only: given the exit/stdout/stderr from esets_cli, return what the
+// hook should do. Pure so it can be unit-tested without spawning a process.
+//   exit 0           -> CONT (clean)
+//   exit 2 or 3      -> DENY  (virus found)
+//   anything else    -> DENYSOFT (scanner error / timeout)
+exports.interpret_esets_exit = function (error, stdout, stderr) {
+  const exit_code = error ? Number(error.code) : 0
+
+  if (Number.isNaN(exit_code) || exit_code < 0) {
+    // non-numeric (ETIMEDOUT, ENOENT, ...) — treat as scanner failure
+    const errMsg = (stdout || stderr || String(error?.message || 'UNKNOWN'))
+      .replaceAll('\n', ' ')
+      .trim()
+    return { rc: DENYSOFT, msg: 'Virus scanner error', exit_code, errMsg }
+  }
+
+  if (exit_code === 0) return { rc: undefined, exit_code }
+
+  if (exit_code > 1 && exit_code < 4) {
+    const m = virus_re.exec(stdout || '')
+    const virus = m ? m[1] : 'UNKNOWN'
+    return {
+      rc: DENY,
+      msg: `Message is infected with ${virus}`,
+      virus,
+      exit_code,
+    }
+  }
+
+  const errMsg = (stdout || stderr || 'UNKNOWN').replaceAll('\n', ' ').trim()
+  return { rc: DENYSOFT, msg: 'Virus scanner error', exit_code, errMsg }
+}
+
 exports.hook_data_post = function (next, connection) {
-  // Write message to temporary file
-  const tmpdir = this.cfg.main.tmpdir || '/tmp'
-  const tmpfile = `${tmpdir}/${connection?.transaction?.uuid}.esets`
+  const plugin = this
+  // path.join normalizes tmpdir; tmpfile is passed to execFile as an arg
+  // element (not interpolated into a shell command) so shell metacharacters
+  // in tmpdir cannot reach the shell parser.
+  const tmpdir = this.cfg.main?.tmpdir || '/tmp'
+  const tmpfile = path.join(tmpdir, `${connection?.transaction?.uuid}.esets`)
   const ws = fs.createWriteStream(tmpfile)
 
+  let finished = false
+  function finish(rc, msg) {
+    if (finished) return
+    finished = true
+    fs.unlink(tmpfile, () => {})
+    if (rc === undefined && msg === undefined) return next()
+    next(rc, msg)
+  }
+
   ws.once('error', (err) => {
-    connection.logerror(this, `Error writing temporary file: ${err.message}`)
-    next()
+    connection.logerror(plugin, `Error writing temporary file: ${err.message}`)
+    finish()
   })
 
-  let start_time
-
   ws.once('close', () => {
-    start_time = Date.now()
-    const execCmd = `LANG=C /opt/eset/esets/bin/esets_cli ${tmpfile}`
-    const execOpts = { encoding: 'utf8', timeout: 30 * 1000 }
-    child_process.exec(execCmd, execOpts, function (error, stdout, stderr) {
-      // Remove the temporary file
-      fs.unlink(tmpfile, () => {})
+    if (finished) return
+    const start_time = Date.now()
+    child_process.execFile(
+      ESETS_CLI,
+      [tmpfile],
+      {
+        encoding: 'utf8',
+        timeout: ESETS_TIMEOUT_MS,
+        env: { ...process.env, LANG: 'C' },
+      },
+      (error, stdout, stderr) => {
+        const elapsed = Date.now() - start_time
 
-      // Timing
-      const end_time = Date.now()
-      const elapsed = end_time - start_time
-
-      // Debugging
-      for (const channel of [stdout, stderr]) {
-        if (channel) {
-          const lines = channel.split('\n')
-          for (const line of lines) {
-            if (line) connection.logdebug(this, `recv: ${line}`)
+        for (const channel of [stdout, stderr]) {
+          if (!channel) continue
+          for (const line of channel.split('\n')) {
+            if (line) connection.logdebug(plugin, `recv: ${line}`)
           }
         }
-      }
 
-      // Get virus name
-      let virus = virus_re.exec(stdout)
-      if (virus) virus = virus[1]
+        const r = plugin.interpret_esets_exit(error, stdout, stderr)
+        const summary = r.virus
+          ? ` virus="${r.virus}"`
+          : r.errMsg
+            ? ` error="${r.errMsg}"`
+            : ''
+        connection.loginfo(
+          plugin,
+          `elapsed=${elapsed}ms code=${r.exit_code}${summary}`,
+        )
 
-      // Log a summary
-      const exit_code = parseInt(error ? error.code : 0)
-      const rmsg =
-        exit_code === 0 || (exit_code > 1 && exit_code < 4)
-          ? ` virus="${virus}"`
-          : ` error="${(stdout || stderr || 'UNKNOWN').replace('\n', ' ').trim()}"`
-
-      connection.loginfo(this, `elapsed=${elapsed}ms code=${exit_code}${rmsg}`)
-
-      // esets_cli returns non-zero exit on virus/error
-      if (exit_code) {
-        if (exit_code > 1 && exit_code < 4) {
-          next(DENY, `Message is infected with ${virus || 'UNKNOWN'}`)
-        } else {
-          next(DENYSOFT, 'Virus scanner error')
-        }
-      }
-    })
+        finish(r.rc, r.msg)
+      },
+    )
   })
 
   connection.transaction.message_stream.pipe(ws)
